@@ -18,9 +18,7 @@ int main(){
     snd_pcm_open(&mic, MIC_DEVICE, SND_PCM_STREAM_CAPTURE, 0);
     snd_pcm_open(&spk, SPK_DEVICE, SND_PCM_STREAM_PLAYBACK, 0);
 
-    // ===================================================
-    // BƯỚC 1: ĐÀM PHÁN CẤU HÌNH VỚI PHẦN CỨNG
-    // ===================================================
+
     snd_pcm_hw_params_malloc(&params);
 
     // --- Cấu hình Mic ---
@@ -51,32 +49,21 @@ int main(){
 
     snd_pcm_hw_params_free(params);
 
-    // ===================================================
-    // BƯỚC 2: KIỂM TRA KẾT QUẢ VÀ CẤP PHÁT BỘ NHỚ
-    // ===================================================
     printf("Phan cung da CHOT period size thuc te la: %lu frames\n", frames);
     
-    // BÂY GIỜ mới được tính toán kích thước và cấp phát RAM
     int buffer_size = frames * 2 * 4; 
     char *buffer = (char *) malloc(buffer_size); 
 
     printf("Bat dau chay loopback...\n");
     int err;
     
-    // ===================================================
-    // BƯỚC 3: MỒI NƯỚC (Pre-fill hạng nặng)
-    // ===================================================
     memset(buffer, 0, buffer_size);
-    // Bơm 4 block để chống móm (đảm bảo Loa có đủ hàng dự trữ)
     for(int i = 0; i < 4; i++) {
         snd_pcm_writei(spk, buffer, frames);
     }
     
     snd_pcm_start(mic);
 
-    // ===================================================
-    // BƯỚC 4: VÒNG LẶP PIPELINE CHÍNH
-    // ===================================================
     while(1){
         err = snd_pcm_readi(mic, buffer, frames);
         if(err < 0){
@@ -90,8 +77,6 @@ int main(){
         if(err < 0){
             printf("Loi loa: %s\n", snd_strerror(err));
             snd_pcm_prepare(spk);
-            
-            // Cấp cứu: Phải bơm lại đủ 4 block như lúc đầu
             memset(buffer, 0, buffer_size);
             for(int i = 0; i < 4; i++) {
                 snd_pcm_writei(spk, buffer, frames);
