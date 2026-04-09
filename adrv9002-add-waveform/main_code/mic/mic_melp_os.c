@@ -46,7 +46,6 @@ int main()
     snd_pcm_t *pcm;
     int shm_fd;
     struct shared_region *shm;
-    int16_t pcm_buffer[AUD_DATA_SIZE];
     int err;
     int frame_count = 0;
 
@@ -67,17 +66,27 @@ int main()
     }
 
     /* Cấu hình: 16-bit, mono, 8000 Hz (chuẩn cho MELP) */
-    snd_pcm_set_params(pcm,
-        SND_PCM_FORMAT_S16_LE,       /* 16-bit signed */
-        SND_PCM_ACCESS_RW_INTERLEAVED,
-        1,                            /* mono */
-        8000,                         /* 8 kHz sample rate */
-        1,                            /* allow resampling */
-        AUD_DATA_SIZE * 1000 / 8      /* latency in us (1 frame = 22.5ms) */
-    );
+    snd_pcm_hw_params_t *hw_params;
+    snd_pcm_hw_params_alloca(&hw_params);
+    snd_pcm_hw_params_any(pcm, hw_params);
 
-    printf("[OK] ALSA capture opened (8kHz, 16-bit, mono)\n");
+    snd_pcm_hw_params_set_access(pcm, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED);
+    snd_pcm_hw_params_set_format(pcm, hw_params, SND_PCM_FORMAT_S32_LE);
+    snd_pcm_hw_params_set_channels(pcm, hw_params, 2);
 
+    unsigned int rate = 8000;
+    snd_pcm_hw_params_set_rate_near(pcm, hw_params, &rate, 0);
+
+    err = snd_pcm_hw_params(pcm, hw_params);
+    if (err < 0) {
+        fprintf(stderr, "Cannot set hw params: %s\n", snd_strerror(err));
+        snd_pcm_close(pcm);
+        return 1;
+    }
+    printf("[OK] ALSA capture opened (%u Hz, S32_LE, stereo)\n", rate);
+
+    int32_t pcm_buffer_raw[AUD_DATA_SIZE * 2];
+    int16_t pcm_buffer[AUD_DATA_SIZE];
     /* --------------------------------------------------------
      * Bước 2: Tạo shared memory ring buffer
      *
@@ -129,13 +138,17 @@ int main()
     while (running) {
 
         /* Đọc 180 samples từ mic (blocking — giống DMA wait) */
-        err = snd_pcm_readi(pcm, pcm_buffer, AUD_DATA_SIZE);
+        err = snd_pcm_readi(pcm, pcm_buffer_raw, AUD_DATA_SIZE);
         if (err < 0) {
-            /* ALSA auto-recovery */
             snd_pcm_recover(pcm, err, 0);
             continue;
         }
         if (err != AUD_DATA_SIZE) continue;
+
+        /* Convert S32_LE stereo → S16 mono (lấy channel trái, shift 16 bit) */
+        for (int i = 0; i < AUD_DATA_SIZE; i++) {
+            pcm_buffer[i] = (int16_t)(pcm_buffer_raw[2 * i] >> 16);
+        }
 
         /* Kiểm tra buffer đầy (giống baremetal không có,
          * nhưng trên Linux nên có để tránh overwrite) */

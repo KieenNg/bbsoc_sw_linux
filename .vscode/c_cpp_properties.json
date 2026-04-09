@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "/data/kienntt/kien_proj/bbsoc/images/linux/rootfs/**",
+                "/data/kienntt/kien_proj/bbsoc/images/linux/rootfs/usr/include/**"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/clang", 
+            "compilerArgs": [
+                "--sysroot=/data/kienntt/kien_proj/bbsoc/images/linux/rootfs"
+            ],
+            "cStandard": "c17",
+            "cppStandard": "c++14",
+            "intelliSenseMode": "linux-clang-x64"
+        }
+    ],
+    "version": 4
+}
